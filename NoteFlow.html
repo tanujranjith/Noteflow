@@ -3519,6 +3519,9 @@
                 <button class="toolbar-btn" onclick="insertLink()">
                     <i class="fas fa-link"></i>
                 </button>
+                <button class="toolbar-btn" onclick="clearFormatting()" title="Clear formatting">
+                    <i class="fas fa-eraser"></i>
+                </button>
                 <button class="toolbar-btn" onclick="formatBlock('pre')">
                     <i class="fas fa-code"></i>
                 </button>
@@ -6203,6 +6206,80 @@
             if (!sel) return;
             const value = sel.value;
             applyHighlight(value === 'none' ? 'none' : value);
+        }
+
+        // Clear formatting for the current selection
+        function clearFormatting() {
+            const editor = document.getElementById('editor');
+            if (!editor) return;
+            editor.focus();
+
+            // Basic browser removal (bold/italic/underline/inline tags)
+            try { document.execCommand('removeFormat', false, null); } catch (e) {}
+            // Remove links
+            try { document.execCommand('unlink', false, null); } catch (e) {}
+
+            // Remove color/background and inline styles within selection ranges
+            const sel = window.getSelection();
+            if (!sel || !sel.rangeCount) return;
+            for (let i = 0; i < sel.rangeCount; i++) {
+                cleanRangeFormatting(sel.getRangeAt(i));
+            }
+            // keep focus
+            editor.focus();
+        }
+
+        // Remove highlight/background color for the current selection
+        function clearHighlightSelection() {
+            const sel = window.getSelection();
+            if (!sel || !sel.rangeCount) return;
+            for (let i = 0; i < sel.rangeCount; i++) {
+                removeHighlightInRange(sel.getRangeAt(i));
+            }
+        }
+
+        // Helper: clean inline formatting styles and unwrap simple formatting tags in a Range
+        function cleanRangeFormatting(range) {
+            const common = range.commonAncestorContainer;
+            const root = common.nodeType === 1 ? common : common.parentElement;
+            if (!root) return;
+
+            // Query elements inside the root and remove inline styles / unwrap formatting tags
+            const nodes = root.querySelectorAll('*');
+            nodes.forEach(el => {
+                if (!range.intersectsNode(el)) return;
+
+                // Remove problematic inline styles
+                if (el.style) {
+                    el.style.color = '';
+                    el.style.backgroundColor = '';
+                    el.style.fontWeight = '';
+                    el.style.fontStyle = '';
+                    el.style.textDecoration = '';
+                    el.style.fontFamily = '';
+                    el.style.fontSize = '';
+                    // Remove style attribute if empty
+                    if (!el.getAttribute('style')) el.removeAttribute('style');
+                }
+
+                // Unwrap common formatting tags (b, strong, i, em, u, s, strike, mark, font)
+                const tag = (el.tagName || '').toUpperCase();
+                const unwrapTags = ['B','STRONG','I','EM','U','S','STRIKE','MARK','FONT','SPAN'];
+                if (unwrapTags.includes(tag)) {
+                    // Only unwrap if element has no remaining attributes (safe unwrap)
+                    if (!el.attributes || el.attributes.length === 0) {
+                        while (el.firstChild) el.parentNode.insertBefore(el.firstChild, el);
+                        el.parentNode.removeChild(el);
+                    }
+                }
+
+                // Remove anchor tags while preserving inner text
+                if (tag === 'A') {
+                    const parent = el.parentNode;
+                    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+                    parent.removeChild(el);
+                }
+            });
         }
 
         // Emoji Picker Functions
